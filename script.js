@@ -64,13 +64,9 @@ async function fetchCentersWithSupplies() {
     setLoading(centersGrid, true);
 
     try {
-        // Fetch centers with their supplies using a join
         const { data: centers, error: centersError } = await supabase
             .from(SUPABASE_CONFIG.tables.centers)
-            .select(`
-                *,
-                supplies:${SUPABASE_CONFIG.tables.supplies}(*)
-            `);
+            .select(`*, supplies:${SUPABASE_CONFIG.tables.supplies}(*)`);
 
         if (centersError) throw new APIError('Failed to fetch centers', centersError.code, centersError);
 
@@ -81,16 +77,12 @@ async function fetchCentersWithSupplies() {
                 <p>Type: ${center.type}</p>
                 <p>Capacity: ${center.current_occupancy}/${center.capacity}</p>
                 <p>Contact: ${center.contact || 'N/A'}</p>
-                
                 <div class="supplies">
                     <p>💧 Water: ${center.supplies?.[0]?.water_supply || 0} units</p>
                     <p>🍲 Food: ${center.supplies?.[0]?.food_supply || 0} units</p>
                     <p>🏥 Medical: ${center.supplies?.[0]?.medical_kits || 0} kits</p>
                 </div>
-                
-                ${center.lat && center.lon ? 
-                    `<p>📍 Location: ${center.lat.toFixed(4)}, ${center.lon.toFixed(4)}</p>` 
-                    : ''}
+                ${center.lat && center.lon ? `<p>📍 Location: ${center.lat.toFixed(4)}, ${center.lon.toFixed(4)}</p>` : ''}
             </div>
         `).join('');
     } catch (error) {
@@ -106,185 +98,26 @@ async function fetchCentersWithSupplies() {
     }
 }
 
-async function fetchUpdates() {
-    const updatesContainer = document.querySelector('.updates-container');
-    setLoading(updatesContainer, true);
-
-    try {
-        const { data: updates, error } = await supabase
-            .from(SUPABASE_CONFIG.tables.updates)
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (error) throw new APIError('Failed to fetch updates', error.code, error);
-
-        updatesContainer.innerHTML = updates.map(update => `
-            <div class="update glass" data-id="${update.id}">
-                <div class="update-header">
-                    <strong>${update.source}</strong>
-                    ${update.verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
-                </div>
-                <p>${update.message}</p>
-                <small>🕒 ${formatDate(update.created_at)}</small>
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Error:', error);
-        updatesContainer.innerHTML = `
-            <div class="update glass">
-                <h3>Error</h3>
-                <p>Failed to load updates. Please try again later.</p>
-            </div>
-        `;
-    } finally {
-        setLoading(updatesContainer, false);
-    }
-}
-
-// Real-time subscriptions setup
-function setupRealTimeSubscriptions() {
-    const channels = supabase.channel('public:all-changes');
-    
-    const handleReconnection = () => {
-        console.log('Reconnecting to real-time channels...');
-        channels.unsubscribe();
-        setTimeout(setupRealTimeSubscriptions, 5000);
-    };
-
-    channels
-        .on('postgres_changes', 
-            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.alerts },
-            (payload) => {
-                console.log('Alert change received:', payload);
-                fetchAlerts();
-            }
-        )
-        .on('postgres_changes',
-            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.centers },
-            (payload) => {
-                console.log('Center change received:', payload);
-                fetchCentersWithSupplies();
-            }
-        )
-        .on('postgres_changes',
-            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.supplies },
-            (payload) => {
-                console.log('Supplies change received:', payload);
-                fetchCentersWithSupplies();
-            }
-        )
-        .on('postgres_changes',
-            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.updates },
-            (payload) => {
-                console.log('Update change received:', payload);
-                fetchUpdates();
-            }
-        )
-        .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-                console.log('Successfully subscribed to real-time changes');
-            } else if (status === 'CLOSED') {
-                console.log('Connection closed. Attempting to reconnect...');
-                handleReconnection();
-            }
-        });
-
-    // Handle window focus/blur for connection management
-    window.addEventListener('focus', () => {
-        console.log('Window focused - checking connection');
-        if (!channels.isConnected()) {
-            handleReconnection();
-        }
-    });
-}
-
-// Emergency Preparedness Checklist
-async function setupPreparationChecklist() {
-    const checklistContainer = document.querySelector('.prep-checklist');
-    
-    const essentialItems = [
-        { id: 'water', text: 'Water (1 gallon per person per day for 3 days)' },
-        { id: 'food', text: 'Non-perishable food (3-day supply)' },
-        { id: 'radio', text: 'Battery-powered or hand crank radio' },
-        { id: 'flashlight', text: 'Flashlight and extra batteries' },
-        { id: 'firstaid', text: 'First aid kit' },
-        { id: 'medications', text: 'Prescription medications' },
-        { id: 'documents', text: 'Important family documents' },
-        { id: 'cash', text: 'Cash and change' }
-    ];
-
-    const checklistHTML = `
-        <h3>Essential Emergency Items</h3>
-        <div class="checklist">
-            ${essentialItems.map(item => `
-                <div class="checklist-item">
-                    <input type="checkbox" id="${item.id}" name="${item.id}">
-                    <label for="${item.id}">${item.text}</label>
-                </div>
-            `).join('')}
-        </div>
-    `;
-
-    checklistContainer.innerHTML = checklistHTML;
-
-    // Load saved checklist state
-    const savedState = localStorage.getItem('emergencyChecklist');
-    if (savedState) {
-        const checkedItems = JSON.parse(savedState);
-        checkedItems.forEach(itemId => {
-            const checkbox = document.getElementById(itemId);
-            if (checkbox) checkbox.checked = true;
-        });
-    }
-
-    // Save checklist state on changes
-    checklistContainer.addEventListener('change', (e) => {
-        if (e.target.type === 'checkbox') {
-            const checkedBoxes = [...document.querySelectorAll('.checklist-item input:checked')]
-                .map(cb => cb.id);
-            localStorage.setItem('emergencyChecklist', JSON.stringify(checkedBoxes));
-        }
-    });
-}
-
 // Initialize application
 async function init() {
     try {
-        // Show loading state
         document.querySelectorAll('.section').forEach(section => {
             setLoading(section, true);
         });
 
-        // Initialize all data fetching in parallel
         await Promise.all([
             fetchAlerts(),
-            fetchCentersWithSupplies(),
-            fetchUpdates(),
-            setupPreparationChecklist()
+            fetchCentersWithSupplies()
         ]);
 
-        // Setup real-time updates
         setupRealTimeSubscriptions();
-
     } catch (error) {
         console.error('Initialization error:', error);
-        // Implement user notification for initialization failure
     } finally {
-        // Hide loading state
         document.querySelectorAll('.section').forEach(section => {
             setLoading(section, false);
         });
     }
 }
 
-// Event listeners
 document.addEventListener('DOMContentLoaded', init);
-
-// Export functions for potential reuse
-export {
-    fetchAlerts,
-    fetchCentersWithSupplies,
-    fetchUpdates,
-    setupRealTimeSubscriptions,
-    setupPreparationChecklist
-};

@@ -1,4 +1,7 @@
-import { api } from './data.js';
+import { SUPABASE_CONFIG, initSupabase } from './config.js';
+
+// Initialize Supabase client
+const supabase = initSupabase();
 
 // Utility Functions
 const formatDate = (dateString) => {
@@ -22,8 +25,22 @@ async function fetchAlerts() {
     setLoading(alertsContainer, true);
 
     try {
-        const { data: alerts, error } = await api.getAlerts();
+        const { data: alerts, error } = await supabase
+            .from(SUPABASE_CONFIG.tables.alerts)
+            .select('*')
+            .order('created_at', { ascending: false });
+
         if (error) throw error;
+
+        if (!alerts || alerts.length === 0) {
+            alertsContainer.innerHTML = `
+                <div class="alert glass">
+                    <h3>No Active Alerts</h3>
+                    <p>There are currently no active alerts in your area.</p>
+                </div>
+            `;
+            return;
+        }
 
         alertsContainer.innerHTML = alerts.map(alert => `
             <div class="alert ${alert.severity.toLowerCase()} glass" data-id="${alert.id}">
@@ -47,13 +64,29 @@ async function fetchAlerts() {
     }
 }
 
-async function fetchCenters() {
+async function fetchCentersWithSupplies() {
     const centersGrid = document.querySelector('.centers-grid');
     setLoading(centersGrid, true);
 
     try {
-        const { data: centers, error } = await api.getCenters();
-        if (error) throw error;
+        const { data: centers, error: centersError } = await supabase
+            .from(SUPABASE_CONFIG.tables.centers)
+            .select(`
+                *,
+                supplies:${SUPABASE_CONFIG.tables.supplies}(*)
+            `);
+
+        if (centersError) throw centersError;
+
+        if (!centers || centers.length === 0) {
+            centersGrid.innerHTML = `
+                <div class="center-card glass">
+                    <h3>No Centers Available</h3>
+                    <p>No emergency centers are currently registered in the system.</p>
+                </div>
+            `;
+            return;
+        }
 
         centersGrid.innerHTML = centers.map(center => `
             <div class="center-card glass" data-id="${center.id}">
@@ -64,9 +97,9 @@ async function fetchCenters() {
                 <p>Contact: ${center.contact || 'N/A'}</p>
                 
                 <div class="supplies">
-                    <p>💧 Water: ${center.supplies.water_supply} units</p>
-                    <p>🍲 Food: ${center.supplies.food_supply} units</p>
-                    <p>🏥 Medical: ${center.supplies.medical_kits} kits</p>
+                    <p>💧 Water: ${center.supplies?.[0]?.water_supply || 0} units</p>
+                    <p>🍲 Food: ${center.supplies?.[0]?.food_supply || 0} units</p>
+                    <p>🏥 Medical: ${center.supplies?.[0]?.medical_kits || 0} kits</p>
                 </div>
                 
                 ${center.lat && center.lon ? 
@@ -92,8 +125,22 @@ async function fetchUpdates() {
     setLoading(updatesContainer, true);
 
     try {
-        const { data: updates, error } = await api.getUpdates();
+        const { data: updates, error } = await supabase
+            .from(SUPABASE_CONFIG.tables.updates)
+            .select('*')
+            .order('created_at', { ascending: false });
+
         if (error) throw error;
+
+        if (!updates || updates.length === 0) {
+            updatesContainer.innerHTML = `
+                <div class="update glass">
+                    <h3>No Updates</h3>
+                    <p>No recent updates are available.</p>
+                </div>
+            `;
+            return;
+        }
 
         updatesContainer.innerHTML = updates.map(update => `
             <div class="update glass" data-id="${update.id}">
@@ -118,100 +165,73 @@ async function fetchUpdates() {
     }
 }
 
-// Emergency Preparedness Checklist
-function setupPreparationChecklist() {
-    const checklistContainer = document.querySelector('.prep-checklist');
-    
-    const essentialItems = [
-        { id: 'water', text: 'Water (1 gallon per person per day for 3 days)' },
-        { id: 'food', text: 'Non-perishable food (3-day supply)' },
-        { id: 'radio', text: 'Battery-powered or hand crank radio' },
-        { id: 'flashlight', text: 'Flashlight and extra batteries' },
-        { id: 'firstaid', text: 'First aid kit' },
-        { id: 'medications', text: 'Prescription medications' },
-        { id: 'documents', text: 'Important family documents' },
-        { id: 'cash', text: 'Cash and change' }
-    ];
-
-    const checklistHTML = `
-        <h3>Essential Emergency Items</h3>
-        <div class="checklist">
-            ${essentialItems.map(item => `
-                <div class="checklist-item">
-                    <input type="checkbox" id="${item.id}" name="${item.id}">
-                    <label for="${item.id}">${item.text}</label>
-                </div>
-            `).join('')}
-        </div>
-    `;
-
-    checklistContainer.innerHTML = checklistHTML;
-
-    // Load saved state
-    const savedState = localStorage.getItem('emergencyChecklist');
-    if (savedState) {
-        const checkedItems = JSON.parse(savedState);
-        checkedItems.forEach(itemId => {
-            const checkbox = document.getElementById(itemId);
-            if (checkbox) checkbox.checked = true;
-        });
-    }
-
-    // Save state on changes
-    checklistContainer.addEventListener('change', (e) => {
-        if (e.target.type === 'checkbox') {
-            const checkedBoxes = [...document.querySelectorAll('.checklist-item input:checked')]
-                .map(cb => cb.id);
-            localStorage.setItem('emergencyChecklist', JSON.stringify(checkedBoxes));
-        }
-    });
-}
-
 // Setup real-time updates
-function setupRealTimeUpdates() {
-    api.addEventListener('dataUpdate', async (event) => {
-        const { type } = event.detail;
-        
-        switch (type) {
-            case 'alert':
-                await fetchAlerts();
-                break;
-            case 'center':
-                await fetchCenters();
-                break;
-            case 'update':
-                await fetchUpdates();
-                break;
-        }
-    });
+function setupRealTimeSubscriptions() {
+    const channels = supabase.channel('public:all-changes');
+    
+    channels
+        .on('postgres_changes', 
+            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.alerts },
+            (payload) => {
+                console.log('Alert change received:', payload);
+                fetchAlerts();
+            }
+        )
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.centers },
+            (payload) => {
+                console.log('Center change received:', payload);
+                fetchCentersWithSupplies();
+            }
+        )
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.supplies },
+            (payload) => {
+                console.log('Supplies change received:', payload);
+                fetchCentersWithSupplies();
+            }
+        )
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: SUPABASE_CONFIG.tables.updates },
+            (payload) => {
+                console.log('Update change received:', payload);
+                fetchUpdates();
+            }
+        )
+        .subscribe((status) => {
+            console.log('Subscription status:', status);
+        });
 
-    // Start the simulation
-    api.startSimulation();
-
-    // Cleanup on page unload
-    window.addEventListener('unload', () => {
-        api.stopSimulation();
-    });
+    return channels;
 }
 
 // Initialize the application
 async function initializeApp() {
+    console.log('Initializing application...');
     try {
+        if (!supabase) {
+            throw new Error('Supabase client not initialized');
+        }
+
         // Show loading state
         document.querySelectorAll('.section').forEach(section => {
             setLoading(section, true);
         });
 
-        // Fetch all data in parallel
+        // Fetch initial data
         await Promise.all([
             fetchAlerts(),
-            fetchCenters(),
+            fetchCentersWithSupplies(),
             fetchUpdates()
         ]);
 
-        // Setup checklist and real-time updates
-        setupPreparationChecklist();
-        setupRealTimeUpdates();
+        // Setup real-time subscriptions
+        const subscription = setupRealTimeSubscriptions();
+
+        // Cleanup on page unload
+        window.addEventListener('unload', () => {
+            subscription.unsubscribe();
+        });
 
     } catch (error) {
         console.error('Initialization error:', error);
@@ -229,20 +249,11 @@ document.addEventListener('DOMContentLoaded', initializeApp);
 // Handle visibility changes
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        // Refresh all data when tab becomes visible
+        // Refresh data when tab becomes visible
         Promise.all([
             fetchAlerts(),
-            fetchCenters(),
+            fetchCentersWithSupplies(),
             fetchUpdates()
         ]).catch(console.error);
     }
 });
-
-// Export functions for potential reuse
-export {
-    fetchAlerts,
-    fetchCenters,
-    fetchUpdates,
-    setupPreparationChecklist,
-    setupRealTimeUpdates
-};

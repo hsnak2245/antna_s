@@ -1,169 +1,113 @@
-// Initialize Supabase client
-const supabaseUrl = 'https://phituvbneyyjtixweeqq.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXR1dmJuZXl5anRpeHdlZXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc5ODU5NDEsImV4cCI6MjA1MzU2MTk0MX0.wTrrg3pz0Rl-L4t7pyJuva5q4VPdnvX1rBMP-xpnKpU'
-const supabase = supabase.createClient(supabaseUrl, supabaseKey)
+// Custom Error Class
+class APIError extends Error {
+    constructor(message, code, details = {}) {
+        super(message);
+        this.name = 'APIError';
+        this.code = code;
+        this.details = details;
+    }
+}
 
-// DOM Elements
-const alertsContainer = document.querySelector('.alerts-container');
-const centersGrid = document.querySelector('.centers-grid');
-const updatesContainer = document.querySelector('.updates-container');
+// Utility Functions
+const formatDate = (date) => {
+    return new Intl.DateTimeFormat('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+    }).format(new Date(date));
+};
 
-// Fetch Data Functions
+const setLoading = (element, isLoading) => {
+    if (isLoading) {
+        element.classList.add('loading');
+    } else {
+        element.classList.remove('loading');
+    }
+};
+
+// Data Fetching Functions
 async function fetchAlerts() {
+    const alertsContainer = document.querySelector('.alerts-container');
+    setLoading(alertsContainer, true);
+
     try {
         const { data: alerts, error } = await supabase
-            .from('alerts')
-            .select('id, type, severity, location, description, created_at')
+            .from(SUPABASE_CONFIG.tables.alerts)
+            .select('*')
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) throw new APIError('Failed to fetch alerts', error.code, error);
 
         alertsContainer.innerHTML = alerts.map(alert => `
-            <div class="alert ${alert.severity.toLowerCase()}" data-id="${alert.id}">
+            <div class="alert ${alert.severity.toLowerCase()} glass" data-id="${alert.id}">
                 <h3>${alert.type}</h3>
-                <p>📍 Location: ${alert.location}</p>
-                <p>⚠️ Severity: ${alert.severity}</p>
-                <p>🕒 Time: ${new Date(alert.created_at).toLocaleString()}</p>
+                <p>📍 ${alert.location}</p>
+                <p>⚠️ ${alert.severity}</p>
+                <p>🕒 ${formatDate(alert.created_at)}</p>
                 <p>${alert.description}</p>
             </div>
         `).join('');
     } catch (error) {
-        console.error('Error fetching alerts:', error);
-        alertsContainer.innerHTML = '<p>Error loading alerts</p>';
+        console.error('Error:', error);
+        alertsContainer.innerHTML = `
+            <div class="alert high glass">
+                <h3>Error</h3>
+                <p>Failed to load alerts. Please try again later.</p>
+            </div>
+        `;
+    } finally {
+        setLoading(alertsContainer, false);
     }
 }
 
 async function fetchCentersWithSupplies() {
+    const centersGrid = document.querySelector('.centers-grid');
+    setLoading(centersGrid, true);
+
     try {
-        // Fetch centers
+        // Fetch centers with their supplies
         const { data: centers, error: centersError } = await supabase
-            .from('centers')
-            .select('*');
+            .from(SUPABASE_CONFIG.tables.centers)
+            .select(`
+                *,
+                supplies:${SUPABASE_CONFIG.tables.supplies}(*)
+            `);
 
-        if (centersError) throw centersError;
+        if (centersError) throw new APIError('Failed to fetch centers', centersError.code, centersError);
 
-        // Fetch supplies for each center
-        const centersWithSupplies = await Promise.all(centers.map(async (center) => {
-            const { data: supplies, error: suppliesError } = await supabase
-                .from('supplies')
-                .select('*')
-                .eq('center_id', center.id)
-                .single();
-
-            if (suppliesError) throw suppliesError;
-
-            return { ...center, supplies };
-        }));
-
-        centersGrid.innerHTML = centersWithSupplies.map(center => `
-            <div class="center-card" data-id="${center.id}">
+        centersGrid.innerHTML = centers.map(center => `
+            <div class="center-card glass" data-id="${center.id}">
+                <div class="status-indicator ${center.status}"></div>
                 <h3>${center.name}</h3>
                 <p>Type: ${center.type}</p>
                 <p>Capacity: ${center.current_occupancy}/${center.capacity}</p>
                 <p>Contact: ${center.contact || 'N/A'}</p>
+                
                 <div class="supplies">
-                    <p>💧 Water: ${center.supplies?.water_supply || 0} units</p>
-                    <p>🍲 Food: ${center.supplies?.food_supply || 0} units</p>
-                    <p>🏥 Medical: ${center.supplies?.medical_kits || 0} kits</p>
+                    <p>💧 Water: ${center.supplies?.[0]?.water_supply || 0} units</p>
+                    <p>🍲 Food: ${center.supplies?.[0]?.food_supply || 0} units</p>
+                    <p>🏥 Medical: ${center.supplies?.[0]?.medical_kits || 0} kits</p>
                 </div>
+                
                 ${center.lat && center.lon ? 
                     `<p>📍 Location: ${center.lat.toFixed(4)}, ${center.lon.toFixed(4)}</p>` 
                     : ''}
             </div>
         `).join('');
     } catch (error) {
-        console.error('Error fetching centers:', error);
-        centersGrid.innerHTML = '<p>Error loading centers</p>';
+        console.error('Error:', error);
+        centersGrid.innerHTML = `
+            <div class="center-card glass">
+                <h3>Error</h3>
+                <p>Failed to load centers. Please try again later.</p>
+            </div>
+        `;
+    } finally {
+        setLoading(centersGrid, false);
     }
 }
 
 async function fetchUpdates() {
-    try {
-        const { data: updates, error } = await supabase
-            .from('updates')
-            .select('id, source, message, verified, created_at')
-            .order('created_at', { ascending: false });
+    const updatesContainer = document.querySelector('.updates-container');
+    setLoading(updatesContainer, true);
 
-        if (error) throw error;
-
-        updatesContainer.innerHTML = updates.map(update => `
-            <div class="update" data-id="${update.id}">
-                <div class="update-header">
-                    <strong>${update.source}</strong>
-                    ${update.verified ? '<span class="verified-badge">✓</span>' : ''}
-                </div>
-                <p>${update.message}</p>
-                <small>${new Date(update.created_at).toLocaleString()}</small>
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Error fetching updates:', error);
-        updatesContainer.innerHTML = '<p>Error loading updates</p>';
-    }
-}
-
-// Real-time subscriptions
-function setupRealTimeSubscriptions() {
-    const channels = supabase.channel('public:all-changes');
-
-    channels
-        .on('postgres_changes', 
-            { event: '*', schema: 'public', table: 'alerts' },
-            (payload) => {
-                console.log('Alert change received:', payload);
-                fetchAlerts();
-            }
-        )
-        .on('postgres_changes',
-            { event: '*', schema: 'public', table: 'centers' },
-            (payload) => {
-                console.log('Center change received:', payload);
-                fetchCentersWithSupplies();
-            }
-        )
-        .on('postgres_changes',
-            { event: '*', schema: 'public', table: 'supplies' },
-            (payload) => {
-                console.log('Supplies change received:', payload);
-                fetchCentersWithSupplies();
-            }
-        )
-        .on('postgres_changes',
-            { event: '*', schema: 'public', table: 'updates' },
-            (payload) => {
-                console.log('Update change received:', payload);
-                fetchUpdates();
-            }
-        )
-        .subscribe();
-}
-
-// Initialize
-async function init() {
-    try {
-        // Initial data fetch
-        await Promise.all([
-            fetchAlerts(),
-            fetchCentersWithSupplies(),
-            fetchUpdates()
-        ]);
-
-        // Setup real-time subscriptions
-        setupRealTimeSubscriptions();
-
-    } catch (error) {
-        console.error('Initialization error:', error);
-    }
-}
-
-// Event Listeners
-document.addEventListener('DOMContentLoaded', init);
-
-// Error Handler
-function handleError(error) {
-    console.error('Error:', error.message);
-    if (error.code === 'PGRST301') {
-        // Handle authentication errors
-        console.log('Authentication required');
-    }
-}
+    try

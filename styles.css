@@ -1,34 +1,48 @@
-/* Global Styles */
 :root {
-    --primary-color: #14b8a6;
-    --secondary-color: #0f766e;
-    --background-color: #0a0a0a;
+    --primary-color: #00f5d4;
+    --secondary-color: #00b4d8;
+    --background-color: #000000;
+    --surface-color: rgba(16, 16, 16, 0.8);
     --text-color: #ffffff;
-    --danger-color: #ef4444;
-    --warning-color: #f59e0b;
-    --success-color: #10b981;
+    --danger-color: #ff4d6d;
+    --warning-color: #ffd60a;
+    --success-color: #2ec4b6;
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Space Mono', monospace;
 }
 
 body {
-    font-family: 'Arial', sans-serif;
-    line-height: 1.6;
     background-color: var(--background-color);
     color: var(--text-color);
+    min-height: 100vh;
+    background: linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 1) 0%,
+        rgba(16, 16, 16, 1) 100%
+    );
 }
 
-/* Header Styles */
+.glass {
+    background: rgba(16, 16, 16, 0.25);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+/* Header & Navigation */
 header {
-    background-color: #1a1a1a;
-    padding: 1rem;
     position: sticky;
     top: 0;
     z-index: 100;
+    padding: 1rem;
 }
 
 nav {
@@ -37,22 +51,32 @@ nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 1rem 2rem;
+    border-radius: 16px;
 }
 
 .logo {
     font-size: 1.5rem;
     font-weight: bold;
     color: var(--primary-color);
+    text-shadow: 0 0 10px rgba(0, 245, 212, 0.5);
+}
+
+.nav-links {
+    display: flex;
+    gap: 2rem;
 }
 
 .nav-links a {
     color: var(--text-color);
     text-decoration: none;
-    margin-left: 2rem;
-    transition: color 0.3s ease;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
 }
 
 .nav-links a:hover {
+    background: rgba(255, 255, 255, 0.1);
     color: var(--primary-color);
 }
 
@@ -70,89 +94,126 @@ main {
 h2 {
     color: var(--primary-color);
     margin-bottom: 1.5rem;
-}
-
-/* Alerts Section */
-.alerts-container {
-    display: grid;
-    gap: 1rem;
-}
-
-.alert {
-    background: rgba(26, 26, 26, 0.9);
-    padding: 1rem;
-    border-radius: 8px;
-    border-left: 4px solid var(--danger-color);
-}
-
-.alert.high {
-    border-color: var(--danger-color);
-}
-
-.alert.medium {
-    border-color: var(--warning-color);
-}
-
-.alert.low {
-    border-color: var(--success-color);
-}
-
-/* Centers Section */
-.centers-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
-}
-
-.center-card {
-    background: rgba(26, 26, 26, 0.9);
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Updates Section */
-.updates-container {
-    display: grid;
-    gap: 1rem;
-}
-
-.update {
-    background: rgba(26, 26, 26, 0.9);
-    padding: 1rem;
-    border-radius: 8px;
-    border-left: 4px solid var(--primary-color);
-}
-
-/* Prep Section */
-.prep-checklist {
-    background: rgba(26, 26, 26, 0.9);
-    padding: 1.5rem;
-    border-radius: 8px;
-}
-
-.checklist {
-    display: grid;
-    gap: 0.5rem;
-}
-
-.checklist-item {
+    font-size: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
-.checklist-item input[type="checkbox"] {
-    accent-color: var(--primary-color);
+/* Alerts & Updates */
+.alerts-container, 
+.updates-container {
+    display: grid;
+    gap: 1rem;
 }
+
+.alert, 
+.update {
+    padding: 1.5rem;
+    border-radius: 12px;
+    transition: transform 0.3s ease;
+}
+
+.alert:hover, 
+.update:hover, 
+.center-card:hover {
+    transform: translateY(-2px);
+}
+
+.alert.high { border-left: 4px solid var(--danger-color); }
+.alert.medium { border-left: 4px solid var(--warning-color); }
+.alert.low { border-left: 4px solid var(--success-color); }
+
+/* Centers Grid */
+.centers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.center-card {
+    padding: 1.5rem;
+    border-radius: 12px;
+    height: 100%;
+}
+
+.supplies {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Status Indicators */
+.verified-badge {
+    background: var(--success-color);
+    color: black;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-left: 0.5rem;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.status-indicator.online { background-color: var(--success-color); }
+.status-indicator.offline { background-color: var(--danger-color); }
 
 /* Footer */
 footer {
-    background-color: #1a1a1a;
-    color: var(--text-color);
     text-align: center;
-    padding: 1rem;
-    margin-top: 2rem;
+    padding: 2rem;
+    margin-top: 4rem;
+}
+
+/* Loading States */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.1),
+        transparent
+    );
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--background-color);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--surface-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
 }
 
 /* Responsive Design */
@@ -161,17 +222,11 @@ footer {
         display: none;
     }
 
+    .mobile-menu {
+        display: block;
+    }
+
     .centers-grid {
         grid-template-columns: 1fr;
     }
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-.alert, .center-card, .update {
-    animation: fadeIn 0.3s ease-in;
 }

@@ -1,4 +1,5 @@
 // Debug function to check Supabase connection
+//test
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(

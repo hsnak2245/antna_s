@@ -3,18 +3,23 @@ const supabaseUrl = 'https://phituvbneyyjtixweeqq.supabase.co'
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXR1dmJuZXl5anRpeHdlZXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc5ODU5NDEsImV4cCI6MjA1MzU2MTk0MX0.wTrrg3pz0Rl-L4t7pyJuva5q4VPdnvX1rBMP-xpnKpU'
 const supabase = supabase.createClient(supabaseUrl, supabaseKey)
 
+// DOM Elements
+const alertsContainer = document.querySelector('.alerts-container');
+const centersGrid = document.querySelector('.centers-grid');
+const updatesContainer = document.querySelector('.updates-container');
+
 // Fetch Data Functions
 async function fetchAlerts() {
     try {
         const { data: alerts, error } = await supabase
             .from('alerts')
-            .select('*')
+            .select('id, type, severity, location, description, created_at')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         alertsContainer.innerHTML = alerts.map(alert => `
-            <div class="alert ${alert.severity}">
+            <div class="alert ${alert.severity.toLowerCase()}" data-id="${alert.id}">
                 <h3>${alert.type}</h3>
                 <p>📍 Location: ${alert.location}</p>
                 <p>⚠️ Severity: ${alert.severity}</p>
@@ -28,32 +33,42 @@ async function fetchAlerts() {
     }
 }
 
-async function fetchCenters() {
+async function fetchCentersWithSupplies() {
     try {
-        const { data: centers, error } = await supabase
+        // Fetch centers
+        const { data: centers, error: centersError } = await supabase
             .from('centers')
-            .select(`
-                *,
-                supplies (
-                    water_supply,
-                    food_supply,
-                    medical_kits
-                )
-            `);
+            .select('*');
 
-        if (error) throw error;
+        if (centersError) throw centersError;
 
-        centersGrid.innerHTML = centers.map(center => `
-            <div class="center-card">
+        // Fetch supplies for each center
+        const centersWithSupplies = await Promise.all(centers.map(async (center) => {
+            const { data: supplies, error: suppliesError } = await supabase
+                .from('supplies')
+                .select('*')
+                .eq('center_id', center.id)
+                .single();
+
+            if (suppliesError) throw suppliesError;
+
+            return { ...center, supplies };
+        }));
+
+        centersGrid.innerHTML = centersWithSupplies.map(center => `
+            <div class="center-card" data-id="${center.id}">
                 <h3>${center.name}</h3>
                 <p>Type: ${center.type}</p>
                 <p>Capacity: ${center.current_occupancy}/${center.capacity}</p>
-                <p>Contact: ${center.contact}</p>
+                <p>Contact: ${center.contact || 'N/A'}</p>
                 <div class="supplies">
-                    <p>💧 Water: ${center.supplies[0]?.water_supply || 0} units</p>
-                    <p>🍲 Food: ${center.supplies[0]?.food_supply || 0} units</p>
-                    <p>🏥 Medical: ${center.supplies[0]?.medical_kits || 0} kits</p>
+                    <p>💧 Water: ${center.supplies?.water_supply || 0} units</p>
+                    <p>🍲 Food: ${center.supplies?.food_supply || 0} units</p>
+                    <p>🏥 Medical: ${center.supplies?.medical_kits || 0} kits</p>
                 </div>
+                ${center.lat && center.lon ? 
+                    `<p>📍 Location: ${center.lat.toFixed(4)}, ${center.lon.toFixed(4)}</p>` 
+                    : ''}
             </div>
         `).join('');
     } catch (error) {
@@ -66,17 +81,16 @@ async function fetchUpdates() {
     try {
         const { data: updates, error } = await supabase
             .from('updates')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(10);
+            .select('id, source, message, verified, created_at')
+            .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         updatesContainer.innerHTML = updates.map(update => `
-            <div class="update">
+            <div class="update" data-id="${update.id}">
                 <div class="update-header">
                     <strong>${update.source}</strong>
-                    ${update.verified ? '✓' : ''}
+                    ${update.verified ? '<span class="verified-badge">✓</span>' : ''}
                 </div>
                 <p>${update.message}</p>
                 <small>${new Date(update.created_at).toLocaleString()}</small>
@@ -90,59 +104,66 @@ async function fetchUpdates() {
 
 // Real-time subscriptions
 function setupRealTimeSubscriptions() {
-    // Listen for new alerts
-    supabase
-        .channel('public:alerts')
+    const channels = supabase.channel('public:all-changes');
+
+    channels
         .on('postgres_changes', 
             { event: '*', schema: 'public', table: 'alerts' },
-            () => fetchAlerts()
+            (payload) => {
+                console.log('Alert change received:', payload);
+                fetchAlerts();
+            }
         )
-        .subscribe();
-
-    // Listen for center updates
-    supabase
-        .channel('public:centers')
         .on('postgres_changes',
             { event: '*', schema: 'public', table: 'centers' },
-            () => fetchCenters()
+            (payload) => {
+                console.log('Center change received:', payload);
+                fetchCentersWithSupplies();
+            }
         )
-        .subscribe();
-
-    // Listen for live updates
-    supabase
-        .channel('public:updates')
         .on('postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'updates' },
-            () => fetchUpdates()
+            { event: '*', schema: 'public', table: 'supplies' },
+            (payload) => {
+                console.log('Supplies change received:', payload);
+                fetchCentersWithSupplies();
+            }
+        )
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'updates' },
+            (payload) => {
+                console.log('Update change received:', payload);
+                fetchUpdates();
+            }
         )
         .subscribe();
 }
 
 // Initialize
 async function init() {
-    // Initial data fetch
-    await Promise.all([
-        fetchAlerts(),
-        fetchCenters(),
-        fetchUpdates()
-    ]);
+    try {
+        // Initial data fetch
+        await Promise.all([
+            fetchAlerts(),
+            fetchCentersWithSupplies(),
+            fetchUpdates()
+        ]);
 
-    // Setup real-time subscriptions
-    setupRealTimeSubscriptions();
+        // Setup real-time subscriptions
+        setupRealTimeSubscriptions();
 
-    // Load saved checklist state
-    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-        const saved = localStorage.getItem(checkbox.id);
-        if (saved) checkbox.checked = JSON.parse(saved);
-    });
+    } catch (error) {
+        console.error('Initialization error:', error);
+    }
 }
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', init);
 
-// Save checklist state
-document.addEventListener('change', (e) => {
-    if (e.target.type === 'checkbox') {
-        localStorage.setItem(e.target.id, e.target.checked);
+// Error Handler
+function handleError(error) {
+    console.error('Error:', error.message);
+    if (error.code === 'PGRST301') {
+        // Handle authentication errors
+        console.log('Authentication required');
     }
-});
+}

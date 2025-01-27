@@ -1,146 +1,140 @@
-// Mock Data
-const mockAlerts = [
-    {
-        type: 'Sandstorm',
-        severity: 'high',
-        location: 'Al Wakrah',
-        time: '2025-01-27 14:30',
-        description: 'Severe sandstorm approaching with reduced visibility'
-    },
-    {
-        type: 'Heat Wave',
-        severity: 'high',
-        location: 'Doha',
-        time: '2025-01-27 14:00',
-        description: 'Extreme temperatures expected to reach 48°C'
-    },
-    {
-        type: 'Flash Flood',
-        severity: 'medium',
-        location: 'Al Khor',
-        time: '2025-01-27 13:30',
-        description: 'Heavy rainfall may cause local flooding'
-    }
-];
+// Initialize Supabase client
+const supabaseUrl = 'https://phituvbneyyjtixweeqq.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXR1dmJuZXl5anRpeHdlZXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc5ODU5NDEsImV4cCI6MjA1MzU2MTk0MX0.wTrrg3pz0Rl-L4t7pyJuva5q4VPdnvX1rBMP-xpnKpU'
+const supabase = supabase.createClient(supabaseUrl, supabaseKey)
 
-const mockCenters = [
-    {
-        name: 'Lusail Sports Arena',
-        type: 'Primary',
-        capacity: 800,
-        current: 234,
-        contact: '+974-4000-1111',
-        supplies: {
-            water: '1000 units',
-            food: '800 units',
-            medical: '50 kits'
-        }
-    },
-    {
-        name: 'Al Thumama Stadium',
-        type: 'Secondary',
-        capacity: 600,
-        current: 156,
-        contact: '+974-4000-2222',
-        supplies: {
-            water: '800 units',
-            food: '600 units',
-            medical: '40 kits'
-        }
-    }
-];
+// Fetch Data Functions
+async function fetchAlerts() {
+    try {
+        const { data: alerts, error } = await supabase
+            .from('alerts')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-const mockUpdates = [
-    {
-        source: 'Qatar Weather',
-        message: 'Severe sandstorm warning for Al Wakrah region. Visibility reduced to 500m.',
-        time: '5 minutes ago',
-        verified: true
-    },
-    {
-        source: 'Civil Defence',
-        message: 'Emergency teams deployed to Al Wakrah. Shelter available.',
-        time: '10 minutes ago',
-        verified: true
-    }
-];
+        if (error) throw error;
 
-const checklistItems = [
-    'Water (5L per person per day)',
-    'Non-perishable food',
-    'First aid kit',
-    'Portable fan/cooling devices',
-    'Dust masks',
-    'Emergency contact list',
-    'Portable radio',
-    'Power bank',
-    'Important documents in waterproof container',
-    'Sand/dust protection for electronics'
-];
-
-// DOM Elements
-const alertsContainer = document.querySelector('.alerts-container');
-const centersGrid = document.querySelector('.centers-grid');
-const updatesContainer = document.querySelector('.updates-container');
-const checklistContainer = document.querySelector('.checklist');
-
-// Render Functions
-function renderAlerts() {
-    alertsContainer.innerHTML = mockAlerts.map(alert => `
-        <div class="alert ${alert.severity}">
-            <h3>${alert.type}</h3>
-            <p>📍 Location: ${alert.location}</p>
-            <p>⚠️ Severity: ${alert.severity}</p>
-            <p>🕒 Time: ${alert.time}</p>
-            <p>${alert.description}</p>
-        </div>
-    `).join('');
-}
-
-function renderCenters() {
-    centersGrid.innerHTML = mockCenters.map(center => `
-        <div class="center-card">
-            <h3>${center.name}</h3>
-            <p>Type: ${center.type}</p>
-            <p>Capacity: ${center.current}/${center.capacity}</p>
-            <p>Contact: ${center.contact}</p>
-            <div class="supplies">
-                <p>💧 Water: ${center.supplies.water}</p>
-                <p>🍲 Food: ${center.supplies.food}</p>
-                <p>🏥 Medical: ${center.supplies.medical}</p>
+        alertsContainer.innerHTML = alerts.map(alert => `
+            <div class="alert ${alert.severity}">
+                <h3>${alert.type}</h3>
+                <p>📍 Location: ${alert.location}</p>
+                <p>⚠️ Severity: ${alert.severity}</p>
+                <p>🕒 Time: ${new Date(alert.created_at).toLocaleString()}</p>
+                <p>${alert.description}</p>
             </div>
-        </div>
-    `).join('');
+        `).join('');
+    } catch (error) {
+        console.error('Error fetching alerts:', error);
+        alertsContainer.innerHTML = '<p>Error loading alerts</p>';
+    }
 }
 
-function renderUpdates() {
-    updatesContainer.innerHTML = mockUpdates.map(update => `
-        <div class="update">
-            <div class="update-header">
-                <strong>${update.source}</strong>
-                ${update.verified ? '✓' : ''}
+async function fetchCenters() {
+    try {
+        const { data: centers, error } = await supabase
+            .from('centers')
+            .select(`
+                *,
+                supplies (
+                    water_supply,
+                    food_supply,
+                    medical_kits
+                )
+            `);
+
+        if (error) throw error;
+
+        centersGrid.innerHTML = centers.map(center => `
+            <div class="center-card">
+                <h3>${center.name}</h3>
+                <p>Type: ${center.type}</p>
+                <p>Capacity: ${center.current_occupancy}/${center.capacity}</p>
+                <p>Contact: ${center.contact}</p>
+                <div class="supplies">
+                    <p>💧 Water: ${center.supplies[0]?.water_supply || 0} units</p>
+                    <p>🍲 Food: ${center.supplies[0]?.food_supply || 0} units</p>
+                    <p>🏥 Medical: ${center.supplies[0]?.medical_kits || 0} kits</p>
+                </div>
             </div>
-            <p>${update.message}</p>
-            <small>${update.time}</small>
-        </div>
-    `).join('');
+        `).join('');
+    } catch (error) {
+        console.error('Error fetching centers:', error);
+        centersGrid.innerHTML = '<p>Error loading centers</p>';
+    }
 }
 
-function renderChecklist() {
-    checklistContainer.innerHTML = checklistItems.map(item => `
-        <div class="checklist-item">
-            <input type="checkbox" id="${item}">
-            <label for="${item}">${item}</label>
-        </div>
-    `).join('');
+async function fetchUpdates() {
+    try {
+        const { data: updates, error } = await supabase
+            .from('updates')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (error) throw error;
+
+        updatesContainer.innerHTML = updates.map(update => `
+            <div class="update">
+                <div class="update-header">
+                    <strong>${update.source}</strong>
+                    ${update.verified ? '✓' : ''}
+                </div>
+                <p>${update.message}</p>
+                <small>${new Date(update.created_at).toLocaleString()}</small>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error fetching updates:', error);
+        updatesContainer.innerHTML = '<p>Error loading updates</p>';
+    }
+}
+
+// Real-time subscriptions
+function setupRealTimeSubscriptions() {
+    // Listen for new alerts
+    supabase
+        .channel('public:alerts')
+        .on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'alerts' },
+            () => fetchAlerts()
+        )
+        .subscribe();
+
+    // Listen for center updates
+    supabase
+        .channel('public:centers')
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'centers' },
+            () => fetchCenters()
+        )
+        .subscribe();
+
+    // Listen for live updates
+    supabase
+        .channel('public:updates')
+        .on('postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'updates' },
+            () => fetchUpdates()
+        )
+        .subscribe();
 }
 
 // Initialize
-function init() {
-    renderAlerts();
-    renderCenters();
-    renderUpdates();
-    renderChecklist();
+async function init() {
+    // Initial data fetch
+    await Promise.all([
+        fetchAlerts(),
+        fetchCenters(),
+        fetchUpdates()
+    ]);
+
+    // Setup real-time subscriptions
+    setupRealTimeSubscriptions();
+
+    // Load saved checklist state
+    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        const saved = localStorage.getItem(checkbox.id);
+        if (saved) checkbox.checked = JSON.parse(saved);
+    });
 }
 
 // Event Listeners
@@ -151,12 +145,4 @@ document.addEventListener('change', (e) => {
     if (e.target.type === 'checkbox') {
         localStorage.setItem(e.target.id, e.target.checked);
     }
-});
-
-// Load saved checklist state
-window.addEventListener('load', () => {
-    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-        const saved = localStorage.getItem(checkbox.id);
-        if (saved) checkbox.checked = JSON.parse(saved);
-    });
 });

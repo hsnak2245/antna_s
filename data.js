@@ -1,5 +1,5 @@
-// Mock data for development and fallback purposes
-const MOCK_DATA = {
+// Mock data store
+export const MOCK_DATA = {
     alerts: [
         {
             id: 1,
@@ -37,7 +37,12 @@ const MOCK_DATA = {
             capacity: 500,
             contact: "+1 (555) 0123",
             lat: 34.0522,
-            lon: -118.2437
+            lon: -118.2437,
+            supplies: {
+                water_supply: 1500,
+                food_supply: 2000,
+                medical_kits: 200
+            }
         },
         {
             id: 2,
@@ -48,7 +53,12 @@ const MOCK_DATA = {
             capacity: 150,
             contact: "+1 (555) 0124",
             lat: 34.0622,
-            lon: -118.2537
+            lon: -118.2537,
+            supplies: {
+                water_supply: 800,
+                food_supply: 1000,
+                medical_kits: 500
+            }
         },
         {
             id: 3,
@@ -59,34 +69,12 @@ const MOCK_DATA = {
             capacity: 1000,
             contact: "+1 (555) 0125",
             lat: 34.0722,
-            lon: -118.2637
-        }
-    ],
-
-    supplies: [
-        {
-            id: 1,
-            center_id: 1,
-            water_supply: 1500,
-            food_supply: 2000,
-            medical_kits: 200,
-            last_updated: "2025-01-27T11:00:00Z"
-        },
-        {
-            id: 2,
-            center_id: 2,
-            water_supply: 800,
-            food_supply: 1000,
-            medical_kits: 500,
-            last_updated: "2025-01-27T11:30:00Z"
-        },
-        {
-            id: 3,
-            center_id: 3,
-            water_supply: 3000,
-            food_supply: 4000,
-            medical_kits: 150,
-            last_updated: "2025-01-27T12:00:00Z"
+            lon: -118.2637,
+            supplies: {
+                water_supply: 3000,
+                food_supply: 4000,
+                medical_kits: 150
+            }
         }
     ],
 
@@ -122,55 +110,58 @@ const MOCK_DATA = {
     ]
 };
 
-// Utility function to simulate API delay
-const simulateDelay = () => new Promise(resolve => setTimeout(resolve, Math.random() * 1000));
-
-// Mock API functions
-const mockAPI = {
-    // Fetch alerts with optional filtering
-    async getAlerts() {
-        await simulateDelay();
-        return { data: MOCK_DATA.alerts, error: null };
-    },
-
-    // Fetch centers with their supplies
-    async getCentersWithSupplies() {
-        await simulateDelay();
-        const centersWithSupplies = MOCK_DATA.centers.map(center => ({
-            ...center,
-            supplies: [MOCK_DATA.supplies.find(s => s.center_id === center.id)]
-        }));
-        return { data: centersWithSupplies, error: null };
-    },
-
-    // Fetch updates with optional filtering
-    async getUpdates() {
-        await simulateDelay();
-        return { data: MOCK_DATA.updates, error: null };
-    },
-
-    // Subscribe to real-time changes (mock implementation)
-    subscribeToChanges(callback) {
-        // Simulate random updates every 30 seconds
-        const interval = setInterval(() => {
-            const types = ['alerts', 'centers', 'supplies', 'updates'];
-            const randomType = types[Math.floor(Math.random() * types.length)];
-            callback({
-                type: randomType,
-                timestamp: new Date().toISOString()
-            });
-        }, 30000);
-
-        // Return cleanup function
-        return () => clearInterval(interval);
+// Mock API class with event emitter functionality
+class MockAPI extends EventTarget {
+    constructor(initialData) {
+        super();
+        this.data = { ...initialData };
     }
-};
 
-// Function to determine whether to use mock data
-const shouldUseMockData = () => {
-    // Add your conditions here (e.g., environment check, Supabase connection test)
-    return !window.supabase || process.env.USE_MOCK_DATA === 'true';
-};
+    async getAlerts() {
+        await this.simulateDelay();
+        return { data: this.data.alerts, error: null };
+    }
 
-// Export mock data and API
-export { MOCK_DATA, mockAPI, shouldUseMockData };
+    async getCenters() {
+        await this.simulateDelay();
+        return { data: this.data.centers, error: null };
+    }
+
+    async getUpdates() {
+        await this.simulateDelay();
+        return { data: this.data.updates, error: null };
+    }
+
+    // Simulate API delay
+    simulateDelay() {
+        const delay = Math.random() * 500 + 100; // 100-600ms delay
+        return new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    // Simulate real-time updates
+    startSimulation() {
+        this.simulationInterval = setInterval(() => {
+            this.generateRandomUpdate();
+        }, 15000); // Generate update every 15 seconds
+    }
+
+    stopSimulation() {
+        if (this.simulationInterval) {
+            clearInterval(this.simulationInterval);
+        }
+    }
+
+    generateRandomUpdate() {
+        const types = ['alert', 'center', 'update'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        
+        const event = new CustomEvent('dataUpdate', {
+            detail: { type, timestamp: new Date().toISOString() }
+        });
+        
+        this.dispatchEvent(event);
+    }
+}
+
+// Create and export API instance
+export const api = new MockAPI(MOCK_DATA);

@@ -1,8 +1,28 @@
-import { createClient } from '@supabase/supabase-js'
+// script.js
+import { supabase } from './config.js';
 
-// Create a single supabase client for interacting with your database
-const supabase = createClient('https://phituvbneyyjtixweeqq.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXR1dmJuZXl5anRpeHdlZXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc5ODU5NDEsImV4cCI6MjA1MzU2MTk0MX0.wTrrg3pz0Rl-L4t7pyJuva5q4VPdnvX1rBMP-xpnKpU')
+// Helper function for date formatting
+const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
 
+// Helper function for loading states
+const setLoading = (element, isLoading) => {
+    if (isLoading) {
+        element.classList.add('loading');
+    } else {
+        element.classList.remove('loading');
+    }
+};
+
+// Debug function to check Supabase connection
 async function checkSupabaseConnection() {
     try {
         const { data, error } = await supabase
@@ -126,3 +146,6 @@ async function initializeApp() {
         });
     }
 }
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', initializeApp);

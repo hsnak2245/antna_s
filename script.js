@@ -1,12 +1,7 @@
-// Debug function to check Supabase connection
-//test
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.SUPABASE_DATABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
+// Create a single supabase client for interacting with your database
+const supabase = createClient('https://phituvbneyyjtixweeqq.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXR1dmJuZXl5anRpeHdlZXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc5ODU5NDEsImV4cCI6MjA1MzU2MTk0MX0.wTrrg3pz0Rl-L4t7pyJuva5q4VPdnvX1rBMP-xpnKpU')
 
 async function checkSupabaseConnection() {
     try {

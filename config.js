@@ -1,19 +1,9 @@
 // config.js
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/+esm'
 
-const getEnvVars = () => {
-    const body = document.querySelector('body');
-    return {
-        supabaseUrl: body.dataset.supabaseUrl,
-        supabaseKey: body.dataset.supabaseKey
-    };
-};
-
-const env = getEnvVars();
-
 const SUPABASE_CONFIG = {
-    url: env.supabaseUrl,
-    key: env.supabaseKey,
+    url: import.meta.env.VITE_SUPABASE_URL,
+    key: import.meta.env.VITE_SUPABASE_ANON_KEY,
     tables: {
         alerts: 'alerts',
         centers: 'centers',
